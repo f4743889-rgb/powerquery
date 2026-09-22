@@ -1,10 +1,7 @@
 ﻿let
     Cols = cfgSchema[Реєстр],
     Settings = cfgSettings,
-    Source = ЗавантаженіФайли,
-
-    UserFile = Table.SelectRows(Source, each [Призначення] = "Файл користувача"),
-    Content = if Table.IsEmpty(UserFile) then null else UserFile{0}[Content],
+    Content = fxGetSingleFileContent("Файл користувача"),
 
     WorkbookData = 
         if Content = null then ШаблонРеєстр else Table.SelectRows(Excel.Workbook(Content, null, true), each [Kind] = "Table"),
@@ -22,25 +19,26 @@
                 else error Error.Record("ПомилкаТаблиці", "Не знайдено або знайдено кілька відповідних таблиць у файлі."),
 
     // Обробка
-    CleanText = Table.TransformColumns(SelectedTable, {{ Cols[Назва], each if _ = null then null else Text.Trim(Text.Clean(Text.From(_))), type text }}),
-    TemplateFields = Type.RecordFields(Type.TableRow(Value.Type(ШаблонРеєстр))),
-    Typed = Table.TransformColumnTypes(CleanText, List.Transform(Record.FieldNames(TemplateFields), (c) => { c, Record.Field(TemplateFields, c)[Type] })),
+    CleanText = Table.TransformColumns(SelectedTable, {{ Cols[Назва], each fxCleanText(_), type text }}),
+    Typed = fxApplyTemplateTypes(CleanText, ШаблонРеєстр, "Файл користувача"),
     
+    // Рядки проміжних підсумків містять текст у «№ з/п» і після типізації є помилковими.
+    // Їх виключення є погодженим правилом бізнес-розрахунку, а не помилкою джерела.
     NoErrors = Table.RemoveRowsWithErrors(Typed, { Cols[Номер] }),
     NonEmpty = Table.SelectRows(NoErrors, (r) => try List.MatchesAny(Record.FieldValues(r), (v) => v <> null and Text.Trim(Text.From(v)) <> "") otherwise true),
     
-    RoundedPrice = Table.TransformColumns(NonEmpty, {{ Cols[Ціна], each if _ = null then null else Number.Round(_, Settings[PriceRoundDigits]), type number }}),
+    RoundedPrice = Table.TransformColumns(NonEmpty, {{ Cols[Ціна], each fxSafeNumberRound(_, Settings[PriceRoundDigits]), type nullable number }}),
 
     Grouped = Table.Group(
         RoundedPrice,
-        { Cols[Назва], Cols[Номенклатура], Cols[Ціна], Cols[Дата] },
+        { Cols[Номер], Cols[Назва], Cols[Номенклатура], Cols[Ціна], Cols[Дата] },
         {
             { Cols[Кількість], each List.Sum(Table.Column(_, Cols[Кількість])), type number },
             { cfgSchema[Вихід][Сума], each List.Sum(Table.Column(_, Cols[Сума])), type number }
         }
     ),
 
-    Sorted = Table.Sort(Grouped, List.Transform({ Cols[Назва], Cols[Номенклатура], Cols[Ціна], Cols[Дата] }, each { _, Order.Ascending })),
+    Sorted = Table.Sort(Grouped, List.Transform({ Cols[Номер], Cols[Назва], Cols[Номенклатура], Cols[Ціна], Cols[Дата] }, each { _, Order.Ascending })),
 
     Renamed = Table.RenameColumns(Sorted, {{ Cols[Номенклатура], cfgSchema[Вихід][Номенклатура] }})
 in

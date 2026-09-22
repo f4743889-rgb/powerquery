@@ -16,7 +16,7 @@ let
 
     // Групування реєстру
     RegGrouped = Table.Group(
-        Table.TransformColumns(RegData, { { RegCols[Ціна], each Number.Round(_, Settings[PriceRoundDigits]), type number } }),
+        Table.TransformColumns(RegData, { { RegCols[Ціна], each fxSafeNumberRound(_, Settings[PriceRoundDigits]), type nullable number } }),
         KeysReg,
         {
             { Out[ЗвітКількість], each List.Sum(Table.Column(_, RegCols[Кількість])), type number },
@@ -30,7 +30,7 @@ let
     InByMVO = if MVO = null then InByType else Table.SelectRows(InByType, each Record.Field(_, InCols[Постачальник]) = MVO),
 
     InGrouped = Table.Group(
-        Table.TransformColumns(InByMVO, { { InCols[Ціна], each Number.Round(_, Settings[PriceRoundDigits]), type number } }),
+        Table.TransformColumns(InByMVO, { { InCols[Ціна], each fxSafeNumberRound(_, Settings[PriceRoundDigits]), type nullable number } }),
         KeysIn,
         {
             { Out[ВнесеноКількість], each List.Sum(Table.Column(_, InCols[Кількість])), type nullable number },

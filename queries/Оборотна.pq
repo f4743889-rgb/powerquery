@@ -6,11 +6,6 @@ let
     TypedData = fxReadCSV("Оборотна відомість", ШаблонОСВ),
 
     // Захищені обробники значень
-    SafeText = (v as any) as nullable text =>
-        if v = null then
-            null
-        else
-            Text.Trim(Text.Clean(Text.From(v))),
     SafeBeforeDelimiter = (v as any, delim as text) as nullable text =>
         if v = null then
             null
@@ -30,7 +25,7 @@ let
     // Очищення та фільтрація
     Cleaned = Table.TransformColumns(
         TypedData,
-        { { Cols[Найменування], each SafeText(_), type text } }
+        { { Cols[Найменування], each fxCleanText(_), type text } }
     ),
     NonZero = Table.SelectRows(Cleaned, each Record.Field(_, Cols[ЗалишокКін]) <> 0),
 

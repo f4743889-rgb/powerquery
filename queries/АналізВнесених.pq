@@ -12,11 +12,7 @@ let
             TextColsToClean,
             (col) => {
                 col,
-                each
-                    if _ = null then
-                        null
-                    else
-                        Text.Trim(Text.Clean(Text.From(_))),
+                each fxCleanText(_),
                 type text
             }
         )

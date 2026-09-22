@@ -5,21 +5,7 @@ fxReadCSV
 
 (filePurpose as text, templateTable as table) as table =>
 let
-    Source = ЗавантаженіФайли,
-    FileRows = Table.SelectRows(Source, each [Призначення] = filePurpose),
-    FileCount = Table.RowCount(FileRows),
-
-    _ValidateFileCount =
-        if FileCount > 1 then
-            error Error.Record(
-                "ДубльованеПризначенняФайлу",
-                "Для призначення «" & filePurpose & "» знайдено кілька файлів.",
-                FileCount
-            )
-        else
-            null,
-
-    Content = if FileCount = 0 then null else FileRows{0}[Content],
+    Content = fxGetSingleFileContent(filePurpose),
 
     RawData =
         if Content = null then
@@ -40,8 +26,7 @@ let
                 else
                     Table.PromoteHeaders(Attempt[Value], [PromoteAllScalars = true]),
 
-    ExpectedCols = Table.ColumnNames(templateTable),
-    Validated = fxValidateColumns(RawData, ExpectedCols, filePurpose),
+    Validated = fxValidateColumns(RawData, Table.ColumnNames(templateTable), filePurpose),
 
     NonEmpty = Table.SelectRows(
         Validated,
@@ -52,11 +37,6 @@ let
             )
     ),
 
-    TemplateFields = Type.RecordFields(Type.TableRow(Value.Type(templateTable))),
-    TypesList = List.Transform(
-        Record.FieldNames(TemplateFields),
-        (col) => { col, Record.Field(TemplateFields, col)[Type] }
-    ),
-    Typed = Table.TransformColumnTypes(NonEmpty, TypesList)
+    Typed = fxApplyTemplateTypes(NonEmpty, templateTable, filePurpose)
 in
     Typed
