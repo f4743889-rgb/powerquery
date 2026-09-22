@@ -1,4 +1,4 @@
-﻿/*
+/*
 fxReadCSV
 Уніфікований зчитувач CSV-файлів за завантаженим вмістом та шаблоном.
 */
@@ -8,6 +8,7 @@ let
     Source = ЗавантаженіФайли,
     FileRows = Table.SelectRows(Source, each [Призначення] = filePurpose),
     FileCount = Table.RowCount(FileRows),
+
     _ValidateFileCount =
         if FileCount > 1 then
             error Error.Record(
@@ -17,6 +18,7 @@ let
             )
         else
             null,
+
     Content = if FileCount = 0 then null else FileRows{0}[Content],
 
     RawData =
