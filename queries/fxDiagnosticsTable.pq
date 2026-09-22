@@ -20,10 +20,8 @@ let
                 RawSource = Record.FieldOrDefault(r, "Source", ""),
                 RawMessage = Record.FieldOrDefault(r, "Message", ""),
                 RawDetail = Record.FieldOrDefault(r, "Detail", null),
-                Severity =
-                    if RawSeverity = null then SeverityMap[Info]
-                    else if List.Contains(Record.FieldValues(SeverityMap), Text.Trim(Text.From(RawSeverity))) then Text.Trim(Text.From(RawSeverity))
-                    else SeverityMap[Info],
+                SeverityText = if RawSeverity = null then SeverityMap[Info] else Text.Trim(Text.From(RawSeverity)),
+                Severity = if List.Contains(Record.FieldValues(SeverityMap), SeverityText) then SeverityText else SeverityMap[Info],
                 Code = if RawCode = null then "UNKNOWN" else Text.Trim(Text.From(RawCode)),
                 Source = if RawSource = null then "" else Text.Trim(Text.From(RawSource)),
                 Message = if RawMessage = null then "" else Text.Trim(Text.From(RawMessage)),
@@ -46,6 +44,7 @@ let
             Text.Combine({ b[Severity], b[Code], b[Source], b[Message] }, "||")
     ),
 
+    // У Power Query немає Number.Compare; компаратор має повертати -1, 0 або 1.
     Sorted = List.Sort(
         Deduped,
         (a, b) =>
@@ -53,7 +52,9 @@ let
                 aOrder = Record.FieldOrDefault(SeverityOrder, a[Severity], 99),
                 bOrder = Record.FieldOrDefault(SeverityOrder, b[Severity], 99)
             in
-                Number.Compare(aOrder, bOrder)
+                if aOrder < bOrder then -1
+                else if aOrder > bOrder then 1
+                else 0
     ),
 
     Rows = List.Transform(

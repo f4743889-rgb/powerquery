@@ -1,4 +1,4 @@
-let
+﻿let
     ColsOSV = cfgSchema[ОСВ],
     ColsReg = cfgSchema[Реєстр],
     Out = cfgSchema[Вихід],
@@ -8,16 +8,16 @@ let
     ParseColsList = Record.FieldValues(ParseFields),
 
     OSVData = fxValidateColumns(Оборотна, Record.FieldValues(ColsOSV), "Оборотна"),
-    RegData = fxValidateColumns(РеєстрЗведений, {ColsReg[Номер], ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість]}, "РеєстрЗведений"),
+    RegData = fxValidateColumns(РеєстрЗведений, { ColsReg[Номер], ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість] }, "РеєстрЗведений"),
 
-    // Сортування FIFO
-    FifoOrder = {
-        { ColsOSV[ДатаПартії], Order.Ascending },
-        { ParseFields[Date], Order.Ascending },
-        { ParseFields[N1], Order.Ascending },
-        { ParseFields[N2], Order.Ascending },
-        { ParseFields[N3], Order.Ascending },
-        { ColsOSV[НомерПартії], Order.Ascending }
+    // Сортування FIFO. Зберігаємо лише назви колонок; критерії будуємо після формування таблиці.
+    FifoColumns = {
+        ColsOSV[ДатаПартії],
+        ParseFields[Date],
+        ParseFields[N1],
+        ParseFields[N2],
+        ParseFields[N3],
+        ColsOSV[НомерПартії]
     },
 
     // Зберігаємо поля розбору: вони потрібні і для FIFO-сортування, і для фінального сортування.
@@ -32,6 +32,19 @@ let
         ColsOSV[НомерПартії],
         Out[КількістьОблік]
     } & ParseColsList),
+
+    // Формуємо тільки валідні критерії сортування для конкретної таблиці.
+    // Це запобігає помилці "Указано неприпустимі критерії сортування",
+    // якщо після вибірки певна технічна колонка відсутня.
+    SortByAvailableColumns = (tbl as table, columnNames as list) as table =>
+        let
+            Available = List.Select(
+                columnNames,
+                each Value.Is(_, type text) and List.Contains(Table.ColumnNames(tbl), _)
+            ),
+            Criteria = List.Transform(Available, each { _, Order.Ascending })
+        in
+            if List.IsEmpty(Criteria) then tbl else Table.Sort(tbl, Criteria),
 
     // Накопичувальна сума за один прохід (O(n)) замість List.FirstN+List.Sum на кожному рядку (O(n^2))
     fnRunningSum = (lst as list) as list =>
@@ -51,11 +64,17 @@ let
     // Локальна функція розрахунку позиції
     ProcessPosition = (posRows as table) as table =>
         let
-            // Номер реєстру зберігає різні документи з однаковими датою та кількістю.
-            Docs = Table.Sort(Table.Distinct(Table.SelectColumns(Table.SelectRows(posRows, each Record.Field(_, Out[ДатаДокумента]) <> null), { ColsReg[Номер], Out[ДатаДокумента], Out[КількістьСписанняРядка] })), { { Out[ДатаДокумента], Order.Ascending }, { ColsReg[Номер], Order.Ascending } }),
+            DocsRaw = Table.Distinct(
+                Table.SelectColumns(
+                    Table.SelectRows(posRows, each Record.Field(_, Out[ДатаДокумента]) <> null),
+                    { ColsReg[Номер], Out[ДатаДокумента], Out[КількістьСписанняРядка] }
+                )
+            ),
+            Docs = SortByAvailableColumns(DocsRaw, { Out[ДатаДокумента], ColsReg[Номер] }),
             TotalWriteOff = List.Sum(Table.Column(Docs, Out[КількістьСписанняРядка])) ?? 0,
 
-            Parties = Table.Sort(Table.Distinct(Table.SelectColumns(posRows, PartyCols)), FifoOrder),
+            PartiesRaw = Table.Distinct(Table.SelectColumns(posRows, PartyCols)),
+            Parties = SortByAvailableColumns(PartiesRaw, FifoColumns),
             PartiesIndexed = Table.AddIndexColumn(Parties, "Idx", 0, 1),
             LastIdx = Table.RowCount(PartiesIndexed) - 1,
             QtyRunning = List.Buffer(fnRunningSum(Table.Column(PartiesIndexed, Out[КількістьОблік]))),
@@ -69,14 +88,10 @@ let
                         qAcc = Record.Field(_, Out[КількістьОблік]),
                         rem = TotalWriteOff - ([AccQty] - qAcc)
                     in
-                        if rem <= 0 then
-                            0
-                        else if [Idx] = LastIdx then
-                            rem
-                        else if rem >= qAcc then
-                            qAcc
-                        else
-                            rem,
+                        if rem <= 0 then 0
+                        else if [Idx] = LastIdx then rem
+                        else if rem >= qAcc then qAcc
+                        else rem,
                 type number
             ),
 
@@ -100,7 +115,6 @@ let
                         pDate = Record.Field(p, ColsOSV[ДатаПартії]),
                         pWO = Record.Field(p, Out[КількістьСписання]),
                         prevWO = WORunning{p[Idx]} - pWO,
-
                         TargetDocs = Table.SelectRows(
                             DocsAcc,
                             each [AccDocQty] > prevWO and ([AccDocQty] - Record.Field(_, Out[КількістьСписанняРядка])) < (prevWO + pWO)
@@ -110,7 +124,7 @@ let
                         if pWO = 0 or List.IsEmpty(EarlyDates) then
                             null
                         else
-                            "Дата видачі (" & Text.Combine(List.Transform(EarlyDates, each Date.ToText(_, Settings[DateFormat])), ", ") & ") менша за дату отримання (" & Date.ToText(pDate, Settings[DateFormat]) & ").",
+                            "Дата видачі (" & Text.Combine(List.Transform(EarlyDates, each Date.ToText(_, Settings[DateFormat])), ", ") & ") менша за дату отримання (" & Text.From(pDate) & ").",
                 type text
             )
         in
@@ -119,10 +133,7 @@ let
     // Підготовка даних
     PrepOSV = Table.RenameColumns(OSVData, { { ColsOSV[КількістьКін], Out[КількістьОблік] } }),
     SafeAfterDelimiter = (v as any, delim as text) as nullable text =>
-        if v = null then
-            null
-        else
-            try Text.AfterDelimiter(Text.From(v), delim) otherwise null,
+        if v = null then null else try Text.AfterDelimiter(Text.From(v), delim) otherwise null,
     WithInvoice = Table.AddColumn(
         PrepOSV,
         Out[Накладна],
@@ -156,8 +167,15 @@ let
     ),
     ZeroReg = Table.ReplaceValue(ExpandedReg, null, 0, Replacer.ReplaceValue, { Out[КількістьСписанняРядка] }),
 
-    SortedForFifo = Table.Sort(ZeroReg, { { ColsOSV[Найменування], Order.Ascending }, { ColsOSV[Номенклатура], Order.Ascending } } & FifoOrder),
-    GroupedFifo = Table.Group(SortedForFifo, { ColsOSV[Номенклатура], ColsOSV[Найменування], ColsOSV[Ціна] }, { { "_Data", ProcessPosition, type table } }),
+    SortedForFifo = SortByAvailableColumns(
+        ZeroReg,
+        { ColsOSV[Найменування], ColsOSV[Номенклатура] } & FifoColumns
+    ),
+    GroupedFifo = Table.Group(
+        SortedForFifo,
+        { ColsOSV[Номенклатура], ColsOSV[Найменування], ColsOSV[Ціна] },
+        { { "_Data", ProcessPosition, type table } }
+    ),
 
     ExpandCols = {
         ColsOSV[ОдиницяВиміру],
@@ -174,11 +192,10 @@ let
 
     // Фінальне сортування
     InvalidInv = Table.SelectRows(CleanedZero, each Record.Field(_, ParseFields[Valid]) <> true),
-    ValidInv = Table.Sort(
+    ValidInv = SortByAvailableColumns(
         Table.SelectRows(CleanedZero, each Record.Field(_, ParseFields[Valid]) = true),
-        { { ParseFields[Date], Order.Ascending }, { ParseFields[N1], Order.Ascending }, { ParseFields[N2], Order.Ascending }, { ParseFields[N3], Order.Ascending } }
+        { ParseFields[Date], ParseFields[N1], ParseFields[N2], ParseFields[N3] }
     ),
-
     Combined = Table.Combine({ InvalidInv, ValidInv }),
     FinalCols = {
         ColsOSV[Постачальник],
