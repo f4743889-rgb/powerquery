@@ -20,6 +20,7 @@ let
         { ColsOSV[НомерПартії], Order.Ascending }
     },
 
+    // Зберігаємо поля розбору: вони потрібні і для FIFO-сортування, і для фінального сортування.
     PartyCols = List.Distinct({
         ColsOSV[Номенклатура],
         ColsOSV[ОдиницяВиміру],
@@ -30,7 +31,7 @@ let
         ColsOSV[ДатаПартії],
         ColsOSV[НомерПартії],
         Out[КількістьОблік]
-    }),
+    } & ParseColsList),
 
     // Накопичувальна сума за один прохід (O(n)) замість List.FirstN+List.Sum на кожному рядку (O(n^2))
     fnRunningSum = (lst as list) as list =>
