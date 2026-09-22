@@ -1,27 +1,49 @@
-let
+﻿let
     Settings = cfgSettings,
     InCols = cfgSchema[Внесені],
     BalCols = cfgSchema[Вихід],
 
-    // Безпечне завантаження табличних джерел
+    // Стандартизоване створення діагностичних записів
+    Diagnostic = fxDiagnostic,
+
+    // Безпечне завантаження табличних джерел.
+    // Помилка не втрачається: вона перетворюється на структурований запис.
     LoadSource = (srcVal, srcName) =>
         let
             Attempt = try srcVal
         in
             if Attempt[HasError] then
-                [ Data = #table({}, {}), Error = "Зверніть увагу: запит «" & srcName & "» завершився помилкою: " & Attempt[Error][Message] ]
+                [
+                    Data = null,
+                    Diagnostic = Diagnostic(
+                        "Error",
+                        "SOURCE_QUERY_FAILED",
+                        srcName,
+                        "Запит «" & srcName & "» завершився помилкою.",
+                        Attempt[Error][Message]
+                    )
+                ]
             else
-                [ Data = Attempt[Value], Error = null ],
+                [ Data = Attempt[Value], Diagnostic = null ],
 
-    // Безпечне завантаження скалярних параметрів
+    // Безпечне завантаження скалярних параметрів.
     LoadParam = (srcVal, srcName) =>
         let
             Attempt = try srcVal
         in
             if Attempt[HasError] then
-                [ Value = null, Error = "Зверніть увагу: параметр «" & srcName & "» завершився помилкою: " & Attempt[Error][Message] ]
+                [
+                    Value = null,
+                    Diagnostic = Diagnostic(
+                        "Error",
+                        "PARAMETER_READ_FAILED",
+                        srcName,
+                        "Не вдалося прочитати параметр «" & srcName & "».",
+                        Attempt[Error][Message]
+                    )
+                ]
             else
-                [ Value = Attempt[Value], Error = null ],
+                [ Value = Attempt[Value], Diagnostic = null ],
 
     InSrc = LoadSource(АналізВнесених, "АналізВнесених"),
     BalSrc = LoadSource(Залишок, "Залишок"),
@@ -32,48 +54,63 @@ let
     ReportDateRawSrc = LoadParam(pReportDateRaw, "pReportDateRaw"),
     ReportDateSrc = LoadParam(pReportDate, "pReportDate"),
 
-    // Перевірка єдиного значення через параметри
     CheckSingleValue = (paramVal, actualList, desc, cellName) =>
         if paramVal = null then
-            "У книзі не заповнено іменований діапазон «" & cellName & "»."
+            Diagnostic(
+                "Warning",
+                "PARAMETER_EMPTY",
+                cellName,
+                "У книзі не заповнено іменований діапазон «" & cellName & "».",
+                null
+            )
         else if List.IsEmpty(actualList) then
-            "У файлі не вдалося визначити " & desc & "."
+            Diagnostic(
+                "Warning",
+                "VALUE_NOT_FOUND",
+                "АналізВнесених",
+                "У файлі не вдалося визначити " & desc & ".",
+                null
+            )
         else if not List.Contains(actualList, paramVal) then
-            "У файлі немає рядків зі значенням " & desc & " = «" & Text.From(paramVal) & "»."
+            Diagnostic(
+                "Warning",
+                "PARAMETER_VALUE_NOT_FOUND",
+                "АналізВнесених",
+                "У файлі немає рядків зі значенням " & desc & " = «" & Text.From(paramVal) & "».",
+                null
+            )
         else
             null,
 
-    // Безпечне читання колонок
     SafeTableColumn = (tbl as any, colName as text) as list =>
         if tbl = null then
-            {}
-        else if Table.IsEmpty(tbl) then
             {}
         else
             try Table.Column(tbl, colName) otherwise {},
 
-    // Аналіз
-    InUniqueDoc = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[ТипДокумента]), Text.From))),
-    InUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[Постачальник]), Text.From))),
+    InUniqueDoc = List.Distinct(
+        List.RemoveNulls(
+            List.Transform(SafeTableColumn(InSrc[Data], InCols[ТипДокумента]), Text.From)
+        )
+    ),
+    InUniqueMVO = List.Distinct(
+        List.RemoveNulls(
+            List.Transform(SafeTableColumn(InSrc[Data], InCols[Постачальник]), Text.From)
+        )
+    ),
 
     MsgType =
-        if InSrc[Error] <> null then
-            null
-        else if DocTypeSrc[Error] <> null then
-            DocTypeSrc[Error]
-        else
-            CheckSingleValue(DocTypeSrc[Value], InUniqueDoc, "тип документа", Settings[NameDocumentType]),
+        if InSrc[Diagnostic] <> null then null
+        else if DocTypeSrc[Diagnostic] <> null then DocTypeSrc[Diagnostic]
+        else CheckSingleValue(DocTypeSrc[Value], InUniqueDoc, "тип документа", Settings[NameDocumentType]),
 
     MsgMVO =
-        if InSrc[Error] <> null then
-            null
-        else if MVOSrc[Error] <> null then
-            MVOSrc[Error]
-        else
-            CheckSingleValue(MVOSrc[Value], InUniqueMVO, "МВО", Settings[NameMVO]),
+        if InSrc[Diagnostic] <> null then null
+        else if MVOSrc[Diagnostic] <> null then MVOSrc[Diagnostic]
+        else CheckSingleValue(MVOSrc[Value], InUniqueMVO, "МВО", Settings[NameMVO]),
 
     NegBalCount =
-        if BalSrc[Error] <> null or BalSrc[Data] = null then
+        if BalSrc[Data] = null then
             0
         else
             Table.RowCount(
@@ -86,15 +123,19 @@ let
                             v <> null and v < 0
                 )
             ),
-
     MsgNeg =
         if NegBalCount > 0 then
-            "У запиті «Залишок» знайдено від’ємні значення (" & Text.From(NegBalCount) & " рядк.)."
-        else
-            null,
+            Diagnostic(
+                "Warning",
+                "NEGATIVE_BALANCE",
+                "Залишок",
+                "У запиті «Залишок» знайдено від’ємні значення (" & Text.From(NegBalCount) & " рядк.).",
+                null
+            )
+        else null,
 
     NotesCount =
-        if BalSrc[Error] <> null or BalSrc[Data] = null then
+        if BalSrc[Data] = null then
             0
         else
             Table.RowCount(
@@ -107,38 +148,56 @@ let
                             v <> null and Text.Trim(Text.From(v)) <> ""
                 )
             ),
-
     MsgNotes =
         if NotesCount > 0 then
-            "У запиті «Залишок» є " & Text.From(NotesCount) & " рядк. із заповненою приміткою."
-        else
-            null,
+            Diagnostic(
+                "Info",
+                "BALANCE_NOTES_PRESENT",
+                "Залишок",
+                "У запиті «Залишок» є " & Text.From(NotesCount) & " рядк. із заповненою приміткою.",
+                null
+            )
+        else null,
 
     DiffCount =
-        if DiffSrc[Error] <> null or DiffSrc[Data] = null then
-            0
-        else
-            Table.RowCount(DiffSrc[Data]),
-
+        if DiffSrc[Data] = null then 0 else Table.RowCount(DiffSrc[Data]),
     MsgDiff =
         if DiffCount > 0 then
-            "Знайдено " & Text.From(DiffCount) & " розбіжностей у «РозбіжностіВнесених»."
-        else
-            null,
+            Diagnostic(
+                "Warning",
+                "REGISTER_DIFFERENCES",
+                "РозбіжностіВнесених",
+                "Знайдено " & Text.From(DiffCount) & " розбіжностей у «РозбіжностіВнесених».",
+                null
+            )
+        else null,
 
-    // Розрізнення "клітинка порожня" від "клітинка містить значення, яке не вдалось розпізнати як дату";
-    // у другому випадку pReportDate теж повертає null, і фільтр за датою звіту в Оборотна.pq мовчки вимикається
     RawReportDate = ReportDateRawSrc[Value],
     MsgReportDate =
-        if ReportDateRawSrc[Error] <> null then
-            ReportDateRawSrc[Error]
-        else if ReportDateSrc[Error] <> null then
-            ReportDateSrc[Error]
+        if ReportDateRawSrc[Diagnostic] <> null then
+            ReportDateRawSrc[Diagnostic]
+        else if ReportDateSrc[Diagnostic] <> null then
+            ReportDateSrc[Diagnostic]
         else if RawReportDate <> null and ReportDateSrc[Value] = null then
-            "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & RawReportDate & "»), але його не вдалося розпізнати як дату."
-        else
-            null,
+            Diagnostic(
+                "Warning",
+                "REPORT_DATE_INVALID",
+                Settings[NameReportDate],
+                "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати як дату.",
+                null
+            )
+        else null,
 
-    AllMessages = List.RemoveNulls({ InSrc[Error], BalSrc[Error], DiffSrc[Error], MsgType, MsgMVO, MsgNeg, MsgNotes, MsgDiff, MsgReportDate })
+    AllDiagnostics = List.RemoveNulls({
+        InSrc[Diagnostic],
+        BalSrc[Diagnostic],
+        DiffSrc[Diagnostic],
+        MsgType,
+        MsgMVO,
+        MsgNeg,
+        MsgNotes,
+        MsgDiff,
+        MsgReportDate
+    })
 in
-    #table(type table [Повідомлення = text], List.Transform(AllMessages, each { _ }))
+    fxDiagnosticsTable(AllDiagnostics)

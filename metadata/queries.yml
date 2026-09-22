@@ -3,176 +3,119 @@ queries:
     file: "../queries/Оборотна.pq"
     type: "Transform"
     loads_to_table: "Оборотна"
-    depends_on:
-      - "cfgSettings"
-      - "pReportDate"
-      - "cfgSchema"
-      - "ШаблонОСВ"
-      - "fxReadCSV"
-
+    depends_on: ["cfgSettings", "pReportDate", "cfgSchema", "ШаблонОСВ", "fxReadCSV"]
   - name: "РеєстрЗведений"
     file: "../queries/РеєстрЗведений.pq"
     type: "Source"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "cfgSchema"
-      - "ЗавантаженіФайли"
-      - "ШаблонРеєстр"
-
+    depends_on: ["cfgSettings", "cfgSchema", "ЗавантаженіФайли", "ШаблонРеєстр"]
   - name: "Залишок"
     file: "../queries/Залишок.pq"
     type: "Transform"
     loads_to_table: "Залишок"
-    depends_on:
-      - "cfgSettings"
-      - "cfgSchema"
-      - "Оборотна"
-      - "РеєстрЗведений"
-      - "pReportDate"
-      - "fnParseCode"
-
+    depends_on: ["cfgSettings", "cfgSchema", "Оборотна", "РеєстрЗведений", "pReportDate", "fnParseCode"]
   - name: "АналізВнесених"
     file: "../queries/АналізВнесених.pq"
     type: "Standalone"
     loads_to_table: ""
-    depends_on:
-      - "cfgSchema"
-      - "cfgSettings"
-      - "fxReadCSV"
-      - "ШаблонВнесені"
-
+    depends_on: ["cfgSchema", "cfgSettings", "fxReadCSV", "ШаблонВнесені"]
   - name: "РозбіжностіВнесених"
     file: "../queries/РозбіжностіВнесених.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "cfgSchema"
-      - "АналізВнесених"
-      - "РеєстрЗведений"
-      - "pDocumentType"
-      - "pMVO"
-
+    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "РеєстрЗведений", "pDocumentType", "pMVO"]
   - name: "ДіагностикаВнесених"
     file: "../queries/ДіагностикаВнесених.pq"
     type: "Transform"
     loads_to_table: "ДіагностикаВнесених"
-    depends_on:
-      - "cfgSettings"
-      - "cfgSchema"
-      - "АналізВнесених"
-      - "Залишок"
-      - "РозбіжностіВнесених"
-      - "pDocumentType"
-      - "pMVO"
-      - "pReportDate"
-      - "pReportDateRaw"
-
+    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "Залишок", "РозбіжностіВнесених", "pDocumentType", "pMVO", "pReportDate", "pReportDateRaw", "fxDiagnostic", "fxDiagnosticsTable"]
   - name: "Звіт"
     file: "../queries/Звіт.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "cfgSchema"
-      - "АналізВнесених"
-      - "fxIsConfirmationAccount"
-
+    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "fxIsConfirmationAccount"]
   - name: "ЗавантаженіФайли"
     file: "../queries/ЗавантаженіФайли.pq"
     type: "Source"
     loads_to_table: ""
     depends_on: []
-
   - name: "ШаблонОСВ"
     file: "../queries/ШаблонОСВ.pq"
     type: "Parameter"
     loads_to_table: ""
     depends_on: []
-
   - name: "ШаблонВнесені"
     file: "../queries/ШаблонВнесені.pq"
     type: "Parameter"
     loads_to_table: ""
     depends_on: []
-
   - name: "ШаблонРеєстр"
     file: "../queries/ШаблонРеєстр.pq"
     type: "Parameter"
     loads_to_table: ""
     depends_on: []
-
   - name: "cfgSettings"
     file: "../queries/cfgSettings.pq"
     type: "Standalone"
     loads_to_table: ""
     depends_on: []
-
   - name: "cfgSchema"
     file: "../queries/cfgSchema.pq"
     type: "Standalone"
     loads_to_table: ""
     depends_on: []
-
   - name: "fxValidateColumns"
     file: "../queries/fxValidateColumns.pq"
     type: "Standalone"
     loads_to_table: ""
     depends_on: []
-
   - name: "fxReadNamedCell"
     file: "../queries/fxReadNamedCell.pq"
     type: "Source"
     loads_to_table: ""
     depends_on: []
-
   - name: "fxIsConfirmationAccount"
     file: "../queries/fxIsConfirmationAccount.pq"
     type: "Standalone"
     loads_to_table: ""
     depends_on: []
-
   - name: "fxReadCSV"
     file: "../queries/fxReadCSV.pq"
     type: "Source"
     loads_to_table: ""
+    depends_on: ["ЗавантаженіФайли", "cfgSettings", "fxValidateColumns"]
+  - name: "fxDiagnostic"
+    file: "../queries/fxDiagnostic.pq"
+    type: "Standalone"
+    loads_to_table: ""
     depends_on: []
-
+  - name: "fxDiagnosticsTable"
+    file: "../queries/fxDiagnosticsTable.pq"
+    type: "Standalone"
+    loads_to_table: ""
+    depends_on: []
   - name: "fnParseCode"
     file: "../queries/fnParseCode.pq"
     type: "Standalone"
     loads_to_table: ""
     depends_on: []
-
   - name: "pReportDate"
     file: "../queries/pReportDate.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "fxReadNamedCell"
-
+    depends_on: ["cfgSettings", "fxReadNamedCell"]
   - name: "pReportDateRaw"
     file: "../queries/pReportDateRaw.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "fxReadNamedCell"
-
+    depends_on: ["cfgSettings", "fxReadNamedCell"]
   - name: "pDocumentType"
     file: "../queries/pDocumentType.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "fxReadNamedCell"
-
+    depends_on: ["cfgSettings", "fxReadNamedCell"]
   - name: "pMVO"
     file: "../queries/pMVO.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on:
-      - "cfgSettings"
-      - "fxReadNamedCell"
+    depends_on: ["cfgSettings", "fxReadNamedCell"]
