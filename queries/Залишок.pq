@@ -8,7 +8,7 @@ let
     ParseColsList = Record.FieldValues(ParseFields),
 
     OSVData = fxValidateColumns(Оборотна, Record.FieldValues(ColsOSV), "Оборотна"),
-    RegData = fxValidateColumns(РеєстрЗведений, {ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість]}, "РеєстрЗведений"),
+    RegData = fxValidateColumns(РеєстрЗведений, {ColsReg[Номер], ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість]}, "РеєстрЗведений"),
 
     // Сортування FIFO
     FifoOrder = {
@@ -28,7 +28,8 @@ let
         ColsOSV[РахунокКороткий],
         ColsOSV[Найменування],
         ColsOSV[ДатаПартії],
-        ColsOSV[НомерПартії]
+        ColsOSV[НомерПартії],
+        Out[КількістьОблік]
     }),
 
     // Накопичувальна сума за один прохід (O(n)) замість List.FirstN+List.Sum на кожному рядку (O(n^2))
@@ -49,7 +50,8 @@ let
     // Локальна функція розрахунку позиції
     ProcessPosition = (posRows as table) as table =>
         let
-            Docs = Table.Sort(Table.Distinct(Table.SelectColumns(Table.SelectRows(posRows, each Record.Field(_, Out[ДатаДокумента]) <> null), { Out[ДатаДокумента], Out[КількістьСписанняРядка] })), { { Out[ДатаДокумента], Order.Ascending } }),
+            // Номер реєстру зберігає різні документи з однаковими датою та кількістю.
+            Docs = Table.Sort(Table.Distinct(Table.SelectColumns(Table.SelectRows(posRows, each Record.Field(_, Out[ДатаДокумента]) <> null), { ColsReg[Номер], Out[ДатаДокумента], Out[КількістьСписанняРядка] })), { { Out[ДатаДокумента], Order.Ascending }, { ColsReg[Номер], Order.Ascending } }),
             TotalWriteOff = List.Sum(Table.Column(Docs, Out[КількістьСписанняРядка])) ?? 0,
 
             Parties = Table.Sort(Table.Distinct(Table.SelectColumns(posRows, PartyCols)), FifoOrder),
@@ -107,7 +109,7 @@ let
                         if pWO = 0 or List.IsEmpty(EarlyDates) then
                             null
                         else
-                            "Дата видачі (" & Text.Combine(List.Transform(EarlyDates, each Date.ToText(_, Settings[DateFormat])), ", ") & ") менша за дату отримання (" & Text.From(pDate) & ").",
+                            "Дата видачі (" & Text.Combine(List.Transform(EarlyDates, each Date.ToText(_, Settings[DateFormat])), ", ") & ") менша за дату отримання (" & Date.ToText(pDate, Settings[DateFormat]) & ").",
                 type text
             )
         in
@@ -148,8 +150,8 @@ let
     ExpandedReg = Table.ExpandTableColumn(
         JoinedReg,
         "_Reg",
-        { ColsReg[Кількість], ColsReg[Дата] },
-        { Out[КількістьСписанняРядка], Out[ДатаДокумента] }
+        { ColsReg[Номер], ColsReg[Кількість], ColsReg[Дата] },
+        { ColsReg[Номер], Out[КількістьСписанняРядка], Out[ДатаДокумента] }
     ),
     ZeroReg = Table.ReplaceValue(ExpandedReg, null, 0, Replacer.ReplaceValue, { Out[КількістьСписанняРядка] }),
 

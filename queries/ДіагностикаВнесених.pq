@@ -159,6 +159,29 @@
             )
         else null,
 
+    QualityDiagnostics = fxCollectDataQualityDiagnostics(
+        InSrc[Data],
+        "АналізВнесених",
+        {
+            [
+                Severity = "Warning",
+                Code = "ITEM_NAME_EMPTY",
+                Message = "У внесених документах відсутнє найменування номенклатури",
+                Predicate = (row as record) as logical =>
+                    let CellValue = try Record.Field(row, InCols[Найменування]) otherwise null
+                    in CellValue = null or Text.Trim(Text.From(CellValue)) = ""
+            ],
+            [
+                Severity = "Warning",
+                Code = "ITEM_CODE_EMPTY",
+                Message = "У внесених документах відсутній код номенклатури",
+                Predicate = (row as record) as logical =>
+                    let CellValue = try Record.Field(row, InCols[Номенклатура]) otherwise null
+                    in CellValue = null or Text.Trim(Text.From(CellValue)) = ""
+            ]
+        }
+    ),
+
     DiffCount =
         if DiffSrc[Data] = null then 0 else Table.RowCount(DiffSrc[Data]),
     MsgDiff =
@@ -200,4 +223,4 @@
         MsgReportDate
     })
 in
-    fxDiagnosticsTable(AllDiagnostics)
+    fxDiagnosticsTable(List.Combine({ AllDiagnostics, QualityDiagnostics }))

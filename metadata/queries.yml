@@ -3,12 +3,12 @@ queries:
     file: "../queries/Оборотна.pq"
     type: "Transform"
     loads_to_table: "Оборотна"
-    depends_on: ["cfgSettings", "pReportDate", "cfgSchema", "ШаблонОСВ", "fxReadCSV"]
+    depends_on: ["cfgSettings", "pReportDate", "cfgSchema", "ШаблонОСВ", "fxReadCSV", "fxCleanText"]
   - name: "РеєстрЗведений"
     file: "../queries/РеєстрЗведений.pq"
     type: "Source"
     loads_to_table: ""
-    depends_on: ["cfgSettings", "cfgSchema", "ЗавантаженіФайли", "ШаблонРеєстр"]
+    depends_on: ["cfgSettings", "cfgSchema", "ШаблонРеєстр", "fxGetSingleFileContent", "fxCleanText", "fxApplyTemplateTypes", "fxSafeNumberRound"]
   - name: "Залишок"
     file: "../queries/Залишок.pq"
     type: "Transform"
@@ -18,17 +18,17 @@ queries:
     file: "../queries/АналізВнесених.pq"
     type: "Standalone"
     loads_to_table: ""
-    depends_on: ["cfgSchema", "cfgSettings", "fxReadCSV", "ШаблонВнесені"]
+    depends_on: ["cfgSchema", "cfgSettings", "fxReadCSV", "ШаблонВнесені", "fxCleanText"]
   - name: "РозбіжностіВнесених"
     file: "../queries/РозбіжностіВнесених.pq"
     type: "Transform"
     loads_to_table: ""
-    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "РеєстрЗведений", "pDocumentType", "pMVO"]
+    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "РеєстрЗведений", "pDocumentType", "pMVO", "fxSafeNumberRound"]
   - name: "ДіагностикаВнесених"
     file: "../queries/ДіагностикаВнесених.pq"
     type: "Transform"
     loads_to_table: "ДіагностикаВнесених"
-    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "Залишок", "РозбіжностіВнесених", "pDocumentType", "pMVO", "pReportDate", "pReportDateRaw", "fxDiagnostic", "fxDiagnosticsTable"]
+    depends_on: ["cfgSettings", "cfgSchema", "АналізВнесених", "Залишок", "РозбіжностіВнесених", "pDocumentType", "pMVO", "pReportDate", "pReportDateRaw", "fxDiagnostic", "fxDiagnosticsTable", "fxCollectDataQualityDiagnostics"]
   - name: "Звіт"
     file: "../queries/Звіт.pq"
     type: "Transform"
@@ -83,7 +83,27 @@ queries:
     file: "../queries/fxReadCSV.pq"
     type: "Source"
     loads_to_table: ""
-    depends_on: ["ЗавантаженіФайли", "cfgSettings", "fxValidateColumns"]
+    depends_on: ["cfgSettings", "fxValidateColumns", "fxGetSingleFileContent", "fxApplyTemplateTypes"]
+  - name: "fxApplyTemplateTypes"
+    file: "../queries/fxApplyTemplateTypes.pq"
+    type: "Standalone"
+    loads_to_table: ""
+    depends_on: ["fxValidateColumns"]
+  - name: "fxCleanText"
+    file: "../queries/fxCleanText.pq"
+    type: "Standalone"
+    loads_to_table: ""
+    depends_on: []
+  - name: "fxGetSingleFileContent"
+    file: "../queries/fxGetSingleFileContent.pq"
+    type: "Source"
+    loads_to_table: ""
+    depends_on: ["ЗавантаженіФайли", "fxValidateColumns"]
+  - name: "fxSafeNumberRound"
+    file: "../queries/fxSafeNumberRound.pq"
+    type: "Standalone"
+    loads_to_table: ""
+    depends_on: []
   - name: "fxDiagnostic"
     file: "../queries/fxDiagnostic.pq"
     type: "Standalone"
@@ -94,6 +114,11 @@ queries:
     type: "Standalone"
     loads_to_table: ""
     depends_on: []
+  - name: "fxCollectDataQualityDiagnostics"
+    file: "../queries/fxCollectDataQualityDiagnostics.pq"
+    type: "Standalone"
+    loads_to_table: ""
+    depends_on: ["fxDiagnostic"]
   - name: "fnParseCode"
     file: "../queries/fnParseCode.pq"
     type: "Standalone"
