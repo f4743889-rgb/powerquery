@@ -61,6 +61,7 @@ queries:
     depends_on:
       - "cfgSettings"
       - "cfgSchema"
+      - "ЗавантаженіФайли"
       - "АналізВнесених"
       - "Залишок"
       - "РозбіжностіВнесених"
@@ -71,6 +72,7 @@ queries:
       - "fxDiagnostic"
       - "fxDiagnosticsTable"
       - "fxCollectDataQualityDiagnostics"
+      - "fxValidateColumns"
 
   - name: "Звіт"
     file: "../queries/Звіт.pq"
@@ -86,7 +88,8 @@ queries:
     file: "../queries/ЗавантаженіФайли.pq"
     type: "Source"
     loads_to_table: ""
-    depends_on: []
+    depends_on:
+      - "fxValidateColumns"
 
   - name: "ШаблонОСВ"
     file: "../queries/ШаблонОСВ.pq"
