@@ -5,9 +5,14 @@ fxGetSingleFileContent
 
 (filePurpose as text) as nullable binary =>
 let
-    Source = fxValidateColumns(ЗавантаженіФайли, { "Призначення", "Content" }, "ЗавантаженіФайли"),
+    Source = fxValidateColumns(
+        ЗавантаженіФайли,
+        {"Призначення", "Content", "ErrorCode", "ErrorMessage", "ErrorDetail"},
+        "ЗавантаженіФайли"
+    ),
     FileRows = Table.SelectRows(Source, each [Призначення] = filePurpose),
-    FileCount = Table.RowCount(FileRows)
+    FileCount = Table.RowCount(FileRows),
+    FileRow = if FileCount = 1 then FileRows{0} else null
 in
     if FileCount > 1 then
         error Error.Record(
@@ -17,5 +22,11 @@ in
         )
     else if FileCount = 0 then
         null
+    else if FileRow[ErrorCode] <> null then
+        error Error.Record(
+            FileRow[ErrorCode],
+            FileRow[ErrorMessage],
+            FileRow[ErrorDetail]
+        )
     else
-        FileRows{0}[Content]
+        FileRow[Content]
