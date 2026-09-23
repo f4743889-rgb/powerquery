@@ -10,7 +10,6 @@
     OSVData = fxValidateColumns(Оборотна, Record.FieldValues(ColsOSV), "Оборотна"),
     RegData = fxValidateColumns(РеєстрЗведений, { ColsReg[Номер], ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість] }, "РеєстрЗведений"),
 
-    // Сортування FIFO. Зберігаємо лише назви колонок; критерії будуємо після формування таблиці.
     FifoColumns = {
         ColsOSV[ДатаПартії],
         ParseFields[Date],
@@ -20,7 +19,6 @@
         ColsOSV[НомерПартії]
     },
 
-    // Зберігаємо поля розбору: вони потрібні і для FIFO-сортування, і для фінального сортування.
     PartyCols = List.Distinct({
         ColsOSV[Номенклатура],
         ColsOSV[ОдиницяВиміру],
@@ -33,9 +31,6 @@
         Out[КількістьОблік]
     } & ParseColsList),
 
-    // Формуємо тільки валідні критерії сортування для конкретної таблиці.
-    // Це запобігає помилці "Указано неприпустимі критерії сортування",
-    // якщо після вибірки певна технічна колонка відсутня.
     SortByAvailableColumns = (tbl as table, columnNames as list) as table =>
         let
             Available = List.Select(
@@ -46,7 +41,6 @@
         in
             if List.IsEmpty(Criteria) then tbl else Table.Sort(tbl, Criteria),
 
-    // Накопичувальна сума за один прохід (O(n)) замість List.FirstN+List.Sum на кожному рядку (O(n^2))
     fnRunningSum = (lst as list) as list =>
         let
             n = List.Count(lst)
@@ -61,7 +55,6 @@
                     each [s]
                 ),
 
-    // Локальна функція розрахунку позиції
     ProcessPosition = (posRows as table) as table =>
         let
             DocsRaw = Table.Distinct(
@@ -130,7 +123,6 @@
         in
             Table.RemoveColumns(PartiesNote, { "Idx", "AccQty" }),
 
-    // Підготовка даних
     PrepOSV = Table.RenameColumns(OSVData, { { ColsOSV[КількістьКін], Out[КількістьОблік] } }),
     SafeAfterDelimiter = (v as any, delim as text) as nullable text =>
         if v = null then null else try Text.AfterDelimiter(Text.From(v), delim) otherwise null,
@@ -177,7 +169,8 @@
         { { "_Data", ProcessPosition, type table } }
     ),
 
-    ExpandCols = {
+    // IsValid та інші технічні поля розгортаються до фільтрації.
+    ExpandCols = List.Distinct({
         ColsOSV[ОдиницяВиміру],
         ColsOSV[Постачальник],
         Out[Накладна],
@@ -186,11 +179,10 @@
         Out[КількістьСписання],
         Out[Залишок],
         Out[Примітка]
-    },
+    } & ParseColsList),
     ExpandedResult = Table.ExpandTableColumn(GroupedFifo, "_Data", ExpandCols),
     CleanedZero = Table.ReplaceValue(ExpandedResult, 0, null, Replacer.ReplaceValue, { Out[КількістьСписання] }),
 
-    // Фінальне сортування
     InvalidInv = Table.SelectRows(CleanedZero, each Record.Field(_, ParseFields[Valid]) <> true),
     ValidInv = SortByAvailableColumns(
         Table.SelectRows(CleanedZero, each Record.Field(_, ParseFields[Valid]) = true),
