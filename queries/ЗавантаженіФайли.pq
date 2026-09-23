@@ -1,14 +1,14 @@
 ﻿let
     Джерело = Excel.CurrentWorkbook(){[Name="tblRegistryPath"]}[Content],
+    ПеревіреніКолонки = fxValidateColumns(Джерело, {"Шлях", "Призначення"}, "tblRegistryPath"),
     #"Видалено пусті" = Table.SelectRows(
-        Джерело, 
+        ПеревіреніКолонки,
         each [Шлях] <> null and [Шлях] <> ""
     ),
-    
     #"Додано вміст" = Table.AddColumn(
-        #"Видалено пусті", 
-        "Content", 
-        each 
+        #"Видалено пусті",
+        "Content",
+        each
             let
                 Path = Text.Trim([Шлях]),
                 Attempt = try File.Contents(Path)
@@ -20,28 +20,8 @@
                         Attempt[Error][Message]
                     )
                 else
-                    Attempt[Value], 
+                    Attempt[Value],
         type binary
     )
-    
 in
     #"Додано вміст"
-
-/*
-let
-    Джерело = Excel.CurrentWorkbook(){[Name="tblRegistryPath"]}[Content],
-    #"Видалено пусті" = Table.SelectRows(
-        Джерело, 
-        each [Шлях] <> null and [Шлях] <> ""
-    ),
-    
-    #"Додано вміст" = Table.AddColumn(
-        #"Видалено пусті", 
-        "Content", 
-        each File.Contents(Text.Trim([Шлях])), 
-        type binary
-    )
-    
-in
-    #"Додано вміст"
-*/

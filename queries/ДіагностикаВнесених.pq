@@ -5,10 +5,11 @@
 
     // Внутрішня оболонка для створення записів
     Diagnostic = fxDiagnostic,
+    FileRegistry = fxValidateColumns(ЗавантаженіФайли, { "Призначення" }, "ЗавантаженіФайли"),
 
     // Визначаємо шаблонний режим для ключових файлів
     MissingFileDiagnostics = {
-        if Table.RowCount(Table.SelectRows(ЗавантаженіФайли, each [Призначення] = "Внесені документи")) = 0 then
+        if Table.RowCount(Table.SelectRows(FileRegistry, each [Призначення] = "Внесені документи")) = 0 then
             Diagnostic(
                 Settings[DiagnosticSeverity][Info],
                 "TEMPLATE_USED",
@@ -18,7 +19,7 @@
             )
         else null,
 
-        if Table.RowCount(Table.SelectRows(ЗавантаженіФайли, each [Призначення] = "Оборотна відомість")) = 0 then
+        if Table.RowCount(Table.SelectRows(FileRegistry, each [Призначення] = "Оборотна відомість")) = 0 then
             Diagnostic(
                 Settings[DiagnosticSeverity][Info],
                 "TEMPLATE_USED",
