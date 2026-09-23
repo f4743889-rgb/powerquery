@@ -5,7 +5,11 @@
 
     // Внутрішня оболонка для створення записів
     Diagnostic = fxDiagnostic,
-    FileRegistry = fxValidateColumns(ЗавантаженіФайли, { "Призначення" }, "ЗавантаженіФайли"),
+    FileRegistry = fxValidateColumns(
+        ЗавантаженіФайли,
+        { "Призначення", "ErrorCode", "ErrorMessage", "ErrorDetail" },
+        "ЗавантаженіФайли"
+    ),
 
     // Визначаємо шаблонний режим для ключових файлів
     MissingFileDiagnostics = {
@@ -27,8 +31,36 @@
                 "Для «Оборотна відомість» використано шаблон, оскільки реальний файл не задано.",
                 null
             )
+        else null,
+
+        if Table.RowCount(Table.SelectRows(FileRegistry, each [Призначення] = "Файл користувача")) = 0 then
+            Diagnostic(
+                Settings[DiagnosticSeverity][Info],
+                "TEMPLATE_USED",
+                "РеєстрЗведений",
+                "Для «Файл користувача» використано шаблон, оскільки реальний файл не задано.",
+                null
+            )
         else null
     },
+
+    FileReadDiagnostics =
+        List.Transform(
+            Table.ToRecords(
+                Table.SelectRows(
+                    FileRegistry,
+                    each [ErrorCode] <> null
+                )
+            ),
+            (r) =>
+                Diagnostic(
+                    Settings[DiagnosticSeverity][Error],
+                    r[ErrorCode],
+                    Text.From(r[Призначення]),
+                    r[ErrorMessage],
+                    r[ErrorDetail]
+                )
+        ),
 
     // Безпечне завантаження табличних джерел
     LoadSource = (srcVal, srcName) =>
@@ -61,7 +93,7 @@
                         Settings[DiagnosticSeverity][Error],
                         "PARAMETER_READ_FAILED",
                         srcName,
-                        "Не вдалося прочитати параметр «" & srcName & "».",
+                        "Не вдалося прочитати параметр «" & srcName & ".",
                         Attempt[Error][Message]
                     )
                 ]
@@ -206,7 +238,7 @@
                 Settings[DiagnosticSeverity][Warning],
                 "REPORT_DATE_INVALID",
                 Settings[NameReportDate],
-                "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати як дату.",
+                "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати.",
                 null
             )
         else null,
@@ -244,17 +276,12 @@
     },
     BalQuality = if BalSrc[Data] = null then {} else fxCollectDataQualityDiagnostics(BalSrc[Data], "Залишок", BalRules),
 
-    DiffQuality =
-        if DiffSrc[Data] = null then {}
-        else if Table.RowCount(DiffSrc[Data]) = 0 then {}
-        else { Diagnostic(Settings[DiagnosticSeverity][Info], "DIFF_TABLE_HAS_ROWS", "РозбіжностіВнесених", "Таблиця розбіжностей має рядки для перевірки.", null) },
-
     AllDiagnostics = List.RemoveNulls(List.Combine({
         MissingFileDiagnostics,
+        FileReadDiagnostics,
         { InSrc[Diagnostic], BalSrc[Diagnostic], DiffSrc[Diagnostic], MsgType, MsgMVO, MsgNeg, MsgNotes, MsgDiff, MsgReportDate },
         InQuality,
-        BalQuality,
-        DiffQuality
+        BalQuality
     }))
 in
     fxDiagnosticsTable(AllDiagnostics)
