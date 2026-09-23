@@ -29,12 +29,11 @@ fxCollectDataQualityDiagnostics
                                     )
                     )
                 ),
+            // List.Distinct з двопараметричним компаратором (a, b) => ... тут не підтримується
+            // ("настроюваний засіб порівняння"). Замість цього — функція-селектор ключа (1 параметр).
             Unique = List.Distinct(
                 Collected,
-                (a, b) =>
-                    Text.Combine({ a[Severity], a[Code], a[Source], a[Message] }, "||")
-                    =
-                    Text.Combine({ b[Severity], b[Code], b[Source], b[Message] }, "||")
+                each Text.Combine({ [Severity], [Code], [Source], [Message] }, "||")
             )
 in
             Unique
