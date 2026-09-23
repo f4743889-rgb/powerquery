@@ -36,29 +36,28 @@ let
                 ]
     ),
 
-    Deduped = List.Distinct(
+    // Не використовуємо власний компаратор: Excel Power Query не підтримує
+    // його в цьому контексті для List.Distinct/List.Sort.
+    NormalizedTable = Table.FromRecords(
         Normalized,
-        (a, b) =>
-            Text.Combine({ a[Severity], a[Code], a[Source], a[Message] }, "||")
-            =
-            Text.Combine({ b[Severity], b[Code], b[Source], b[Message] }, "||")
+        type table [
+            Severity = text,
+            Code = text,
+            Source = text,
+            Message = text,
+            Detail = nullable text
+        ]
     ),
-
-    // У Power Query немає Number.Compare; компаратор має повертати -1, 0 або 1.
-    Sorted = List.Sort(
+    Deduped = Table.Distinct(NormalizedTable, {"Severity", "Code", "Source", "Message"}),
+    WithSortOrder = Table.AddColumn(
         Deduped,
-        (a, b) =>
-            let
-                aOrder = Record.FieldOrDefault(SeverityOrder, a[Severity], 99),
-                bOrder = Record.FieldOrDefault(SeverityOrder, b[Severity], 99)
-            in
-                if aOrder < bOrder then -1
-                else if aOrder > bOrder then 1
-                else 0
+        "__SeverityOrder",
+        each Record.FieldOrDefault(SeverityOrder, [Severity], 99),
+        Int64.Type
     ),
-
+    Sorted = Table.Sort(WithSortOrder, {{"__SeverityOrder", Order.Ascending}}),
     Rows = List.Transform(
-        Sorted,
+        Table.ToRecords(Table.RemoveColumns(Sorted, {"__SeverityOrder"})),
         each {
             [Severity],
             [Code],
