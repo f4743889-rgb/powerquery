@@ -1,4 +1,4 @@
-﻿/*
+/*
 fxCollectDataQualityDiagnostics
 Збирає лічильники рядків, що відповідають правилам якості даних.
 Кожне правило містить Code, Severity, Message і Predicate (функція від рядка).
