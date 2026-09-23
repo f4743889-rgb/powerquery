@@ -1,4 +1,4 @@
-﻿let
+let
     ColsOSV = cfgSchema[ОСВ],
     ColsReg = cfgSchema[Реєстр],
     Out = cfgSchema[Вихід],
@@ -28,7 +28,8 @@
         ColsOSV[Найменування],
         ColsOSV[ДатаПартії],
         ColsOSV[НомерПартії],
-        Out[КількістьОблік]
+        Out[КількістьОблік],
+        Out[Накладна]
     } & ParseColsList),
 
     SortByAvailableColumns = (tbl as table, columnNames as list) as table =>
