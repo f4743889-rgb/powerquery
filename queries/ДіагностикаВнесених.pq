@@ -1,4 +1,4 @@
-﻿let
+let
     Settings = cfgSettings,
     InCols = cfgSchema[Внесені],
     BalCols = cfgSchema[Вихід],
@@ -44,23 +44,17 @@
         else null
     },
 
-    FileReadDiagnostics =
-        List.Transform(
-            Table.ToRecords(
-                Table.SelectRows(
-                    FileRegistry,
-                    each [ErrorCode] <> null
-                )
-            ),
-            (r) =>
-                Diagnostic(
-                    Settings[DiagnosticSeverity][Error],
-                    r[ErrorCode],
-                    Text.From(r[Призначення]),
-                    r[ErrorMessage],
-                    r[ErrorDetail]
-                )
-        ),
+    // Повідомляємо про помилки читання без повторного виконання джерела.
+    FileReadDiagnostics = List.Transform(
+        Table.ToRecords(Table.SelectRows(FileRegistry, each [ErrorCode] <> null)),
+        (r) => Diagnostic(
+            Settings[DiagnosticSeverity][Error],
+            r[ErrorCode],
+            Text.From(r[Призначення]),
+            r[ErrorMessage],
+            r[ErrorDetail]
+        )
+    ),
 
     // Безпечне завантаження табличних джерел
     LoadSource = (srcVal, srcName) =>
@@ -93,7 +87,7 @@
                         Settings[DiagnosticSeverity][Error],
                         "PARAMETER_READ_FAILED",
                         srcName,
-                        "Не вдалося прочитати параметр «" & srcName & ".",
+                        "Не вдалося прочитати параметр «" & srcName & "».",
                         Attempt[Error][Message]
                     )
                 ]
@@ -238,7 +232,7 @@
                 Settings[DiagnosticSeverity][Warning],
                 "REPORT_DATE_INVALID",
                 Settings[NameReportDate],
-                "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати.",
+                "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати як дату.",
                 null
             )
         else null,
@@ -249,13 +243,13 @@
             Severity = Settings[DiagnosticSeverity][Warning],
             Code = "EMPTY_DOC_TYPE",
             Message = "У таблиці є рядки з пустим типом документа.",
-            Predicate = each try Record.Field(_, InCols[ТипДокумента]) otherwise null = null
+            Predicate = each (try Record.Field(_, InCols[ТипДокумента]) otherwise null) = null
         ],
         [
             Severity = Settings[DiagnosticSeverity][Warning],
             Code = "EMPTY_MVO",
             Message = "У таблиці є рядки з пустим МВО.",
-            Predicate = each try Record.Field(_, InCols[Постачальник]) otherwise null = null
+            Predicate = each (try Record.Field(_, InCols[Постачальник]) otherwise null) = null
         ]
     },
     InQuality = fxCollectDataQualityDiagnostics(АналізВнесених, "АналізВнесених", InRules),
@@ -265,13 +259,17 @@
             Severity = Settings[DiagnosticSeverity][Warning],
             Code = "NEGATIVE_BALANCE_RULE",
             Message = "Знайдено рядки з від’ємним залишком.",
-            Predicate = each try Record.Field(_, BalCols[Залишок]) otherwise null <> null and Record.Field(_, BalCols[Залишок]) < 0
+            Predicate = each
+                let v = try Record.Field(_, BalCols[Залишок]) otherwise null
+                in v <> null and v < 0
         ],
         [
             Severity = Settings[DiagnosticSeverity][Info],
             Code = "NOTE_PRESENT_RULE",
             Message = "Знайдено рядки з заповненою приміткою.",
-            Predicate = each try Record.Field(_, BalCols[Примітка]) otherwise null <> null and Text.Trim(Text.From(Record.Field(_, BalCols[Примітка]))) <> ""
+            Predicate = each
+                let v = try Record.Field(_, BalCols[Примітка]) otherwise null
+                in v <> null and Text.Trim(Text.From(v)) <> ""
         ]
     },
     BalQuality = if BalSrc[Data] = null then {} else fxCollectDataQualityDiagnostics(BalSrc[Data], "Залишок", BalRules),
