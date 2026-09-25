@@ -57,7 +57,6 @@ let
         )
     ),
 
-    // Безпечне завантаження табличних джерел
     LoadSource = (srcVal, srcName) =>
         let
             Attempt = try srcVal
@@ -76,7 +75,6 @@ let
             else
                 [ Data = Attempt[Value], Diagnostic = null ],
 
-    // Безпечне завантаження параметрів
     LoadParam = (srcVal, srcName) =>
         let
             Attempt = try srcVal
@@ -107,53 +105,20 @@ let
 
     CheckSingleValue = (paramVal, actualList, desc, cellName) =>
         if paramVal = null then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Warning],
-                "PARAMETER_EMPTY",
-                cellName,
-                "У книзі не заповнено іменований діапазон «" & cellName & "».",
-                null
-            )
+            Diagnostic(Settings[DiagnosticSeverity][Warning], "PARAMETER_EMPTY", cellName, "У книзі не заповнено іменований діапазон «" & cellName & "».", null)
         else if List.IsEmpty(actualList) then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Warning],
-                "VALUE_NOT_FOUND",
-                "АналізВнесених",
-                "У файлі не вдалося визначити " & desc & ".",
-                null
-            )
+            Diagnostic(Settings[DiagnosticSeverity][Warning], "VALUE_NOT_FOUND", "АналізВнесених", "У файлі не вдалося визначити " & desc & ".", null)
         else if not List.Contains(actualList, paramVal) then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Warning],
-                "PARAMETER_VALUE_NOT_FOUND",
-                "АналізВнесених",
-                "У файлі немає рядків зі значенням " & desc & " = «" & Text.From(paramVal) & "».",
-                null
-            )
-        else
-            null,
+            Diagnostic(Settings[DiagnosticSeverity][Warning], "PARAMETER_VALUE_NOT_FOUND", "АналізВнесених", "У файлі немає рядків зі значенням " & desc & " = «" & Text.From(paramVal) & "».", null)
+        else null,
 
     SafeTableColumn = (tbl as any, colName as text) as list =>
-        if tbl = null then
-            {}
-        else
-            try Table.Column(tbl, colName) otherwise {},
+        if tbl = null then {} else try Table.Column(tbl, colName) otherwise {},
 
-    InUniqueDoc = List.Distinct(
-        List.RemoveNulls(
-            List.Transform(SafeTableColumn(InSrc[Data], InCols[ТипДокумента]), Text.From)
-        )
-    ),
-    InUniqueMVO = List.Distinct(
-        List.RemoveNulls(
-            List.Transform(SafeTableColumn(InSrc[Data], InCols[Постачальник]), Text.From)
-        )
-    ),
-    OSVUniqueMVO = List.Distinct(
-        List.RemoveNulls(
-            List.Transform(SafeTableColumn(OSVSrc[Data], OSVCols[Постачальник]), Text.From)
-        )
-    ),
+    InUniqueDoc = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[ТипДокумента]), Text.From))),
+    InUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[Постачальник]), Text.From))),
+    // МВО в оборотній — це «Контрагент», а не «Від кого» (постачальник).
+    OSVUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(OSVSrc[Data], OSVCols[МВО]), Text.From))),
 
     MsgType =
         if InSrc[Diagnostic] <> null then null
@@ -165,139 +130,44 @@ let
         else if MVOSrc[Diagnostic] <> null then MVOSrc[Diagnostic]
         else CheckSingleValue(MVOSrc[Value], InUniqueMVO, "МВО", Settings[NameMVO]),
 
-    // Перевіряємо вибраний МВО саме в оборотній відомості.
-    // Порожній pMVO означає обробку всіх МВО й не є помилкою.
     MsgMVOOSV =
-        if MVOSrc[Diagnostic] <> null or MVOSrc[Value] = null then
-            null
-        else if OSVSrc[Diagnostic] <> null then
-            null
+        if MVOSrc[Diagnostic] <> null or MVOSrc[Value] = null then null
+        else if OSVSrc[Diagnostic] <> null then null
         else if not List.Contains(OSVUniqueMVO, Text.From(MVOSrc[Value])) then
             Diagnostic(
                 Settings[DiagnosticSeverity][Warning],
                 "PARAMETER_VALUE_NOT_FOUND",
                 "Оборотна",
-                "У запиті «Оборотна» немає рядків зі значенням МВО = «"
-                    & Text.From(MVOSrc[Value])
-                    & "». Списання за цим МВО не можуть бути знайдені.",
-                null
-            )
-        else
-            null,
-
-    NegBalCount =
-        if BalSrc[Data] = null then
-            0
-        else
-            Table.RowCount(
-                Table.SelectRows(
-                    BalSrc[Data],
-                    each
-                        let
-                            v = try Record.Field(_, BalCols[Залишок]) otherwise null
-                        in
-                            v <> null and v < 0
-                )
-            ),
-    MsgNeg =
-        if NegBalCount > 0 then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Warning],
-                "NEGATIVE_BALANCE",
-                "Залишок",
-                "У запиті «Залишок» знайдено від’ємні значення (" & Text.From(NegBalCount) & " рядк.).",
+                "У запиті «Оборотна» немає рядків зі значенням МВО = «" & Text.From(MVOSrc[Value]) & "». Списання за цим МВО не можуть бути знайдені.",
                 null
             )
         else null,
 
-    NotesCount =
-        if BalSrc[Data] = null then
-            0
-        else
-            Table.RowCount(
-                Table.SelectRows(
-                    BalSrc[Data],
-                    each
-                        let
-                            v = try Record.Field(_, BalCols[Примітка]) otherwise null
-                        in
-                            v <> null and Text.Trim(Text.From(v)) <> ""
-                )
-            ),
-    MsgNotes =
-        if NotesCount > 0 then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Info],
-                "BALANCE_NOTES_PRESENT",
-                "Залишок",
-                "У запиті «Залишок» є " & Text.From(NotesCount) & " рядк. із заповненою приміткою.",
-                null
-            )
-        else null,
+    NegBalCount = if BalSrc[Data] = null then 0 else Table.RowCount(Table.SelectRows(BalSrc[Data], each let v = try Record.Field(_, BalCols[Залишок]) otherwise null in v <> null and v < 0)),
+    MsgNeg = if NegBalCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Warning], "NEGATIVE_BALANCE", "Залишок", "У запиті «Залишок» знайдено від’ємні значення (" & Text.From(NegBalCount) & " рядк.).", null) else null,
 
-    DiffCount =
-        if DiffSrc[Data] = null then 0 else Table.RowCount(DiffSrc[Data]),
-    MsgDiff =
-        if DiffCount > 0 then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Warning],
-                "REGISTER_DIFFERENCES",
-                "РозбіжностіВнесених",
-                "Знайдено " & Text.From(DiffCount) & " розбіжностей у «РозбіжностіВнесених».",
-                null
-            )
-        else null,
+    NotesCount = if BalSrc[Data] = null then 0 else Table.RowCount(Table.SelectRows(BalSrc[Data], each let v = try Record.Field(_, BalCols[Примітка]) otherwise null in v <> null and Text.Trim(Text.From(v)) <> "")),
+    MsgNotes = if NotesCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Info], "BALANCE_NOTES_PRESENT", "Залишок", "У запиті «Залишок» є " & Text.From(NotesCount) & " рядк. із заповненою приміткою.", null) else null,
+
+    DiffCount = if DiffSrc[Data] = null then 0 else Table.RowCount(DiffSrc[Data]),
+    MsgDiff = if DiffCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Warning], "REGISTER_DIFFERENCES", "РозбіжностіВнесених", "Знайдено " & Text.From(DiffCount) & " розбіжностей у «РозбіжностіВнесених».", null) else null,
 
     RawReportDate = ReportDateRawSrc[Value],
     MsgReportDate =
-        if ReportDateRawSrc[Diagnostic] <> null then
-            ReportDateRawSrc[Diagnostic]
-        else if ReportDateSrc[Diagnostic] <> null then
-            ReportDateSrc[Diagnostic]
-        else if RawReportDate <> null and ReportDateSrc[Value] = null then
-            Diagnostic(
-                Settings[DiagnosticSeverity][Warning],
-                "REPORT_DATE_INVALID",
-                Settings[NameReportDate],
-                "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати як дату.",
-                null
-            )
+        if ReportDateRawSrc[Diagnostic] <> null then ReportDateRawSrc[Diagnostic]
+        else if ReportDateSrc[Diagnostic] <> null then ReportDateSrc[Diagnostic]
+        else if RawReportDate <> null and ReportDateSrc[Value] = null then Diagnostic(Settings[DiagnosticSeverity][Warning], "REPORT_DATE_INVALID", Settings[NameReportDate], "У клітинці «" & Settings[NameReportDate] & "» вказано значення («" & Text.From(RawReportDate) & "»), але його не вдалося розпізнати як дату.", null)
         else null,
 
-    // Правила якості даних для основних таблиць
     InRules = {
-        [
-            Severity = Settings[DiagnosticSeverity][Warning],
-            Code = "EMPTY_DOC_TYPE",
-            Message = "У таблиці є рядки з пустим типом документа.",
-            Predicate = each (try Record.Field(_, InCols[ТипДокумента]) otherwise null) = null
-        ],
-        [
-            Severity = Settings[DiagnosticSeverity][Warning],
-            Code = "EMPTY_MVO",
-            Message = "У таблиці є рядки з пустим МВО.",
-            Predicate = each (try Record.Field(_, InCols[Постачальник]) otherwise null) = null
-        ]
+        [Severity = Settings[DiagnosticSeverity][Warning], Code = "EMPTY_DOC_TYPE", Message = "У таблиці є рядки з пустим типом документа.", Predicate = each (try Record.Field(_, InCols[ТипДокумента]) otherwise null) = null],
+        [Severity = Settings[DiagnosticSeverity][Warning], Code = "EMPTY_MVO", Message = "У таблиці є рядки з пустим МВО.", Predicate = each (try Record.Field(_, InCols[Постачальник]) otherwise null) = null]
     },
     InQuality = fxCollectDataQualityDiagnostics(АналізВнесених, "АналізВнесених", InRules),
 
     BalRules = {
-        [
-            Severity = Settings[DiagnosticSeverity][Warning],
-            Code = "NEGATIVE_BALANCE_RULE",
-            Message = "Знайдено рядки з від’ємним залишком.",
-            Predicate = each
-                let v = try Record.Field(_, BalCols[Залишок]) otherwise null
-                in v <> null and v < 0
-        ],
-        [
-            Severity = Settings[DiagnosticSeverity][Info],
-            Code = "NOTE_PRESENT_RULE",
-            Message = "Знайдено рядки з заповненою приміткою.",
-            Predicate = each
-                let v = try Record.Field(_, BalCols[Примітка]) otherwise null
-                in v <> null and Text.Trim(Text.From(v)) <> ""
-        ]
+        [Severity = Settings[DiagnosticSeverity][Warning], Code = "NEGATIVE_BALANCE_RULE", Message = "Знайдено рядки з від’ємним залишком.", Predicate = each let v = try Record.Field(_, BalCols[Залишок]) otherwise null in v <> null and v < 0],
+        [Severity = Settings[DiagnosticSeverity][Info], Code = "NOTE_PRESENT_RULE", Message = "Знайдено рядки з заповненою приміткою.", Predicate = each let v = try Record.Field(_, BalCols[Примітка]) otherwise null in v <> null and Text.Trim(Text.From(v)) <> ""]
     },
     BalQuality = if BalSrc[Data] = null then {} else fxCollectDataQualityDiagnostics(BalSrc[Data], "Залишок", BalRules),
 
