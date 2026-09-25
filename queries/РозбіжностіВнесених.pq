@@ -27,7 +27,7 @@ let
     // Фільтрація та групування внесених
     InFiltered = Table.SelectRows(InData, each not fxIsConfirmationAccount(Record.Field(_, InCols[Рахунок]))),
     InByType = if DocType = null then InFiltered else Table.SelectRows(InFiltered, each Record.Field(_, InCols[ТипДокумента]) = DocType),
-    InByMVO = if MVO = null then InByType else Table.SelectRows(InByType, each Record.Field(_, InCols[Постачальник]) = MVO),
+    InByMVO = if MVO = null then InByType else Table.SelectRows(InByType, each Record.Field(_, InCols[МВО]) = MVO),
 
     InGrouped = Table.Group(
         Table.TransformColumns(InByMVO, { { InCols[Ціна], each fxSafeNumberRound(_, Settings[PriceRoundDigits]), type nullable number } }),
