@@ -2,10 +2,8 @@ let
     Cols = cfgSchema[ОСВ],
     Settings = cfgSettings,
 
-    // Зчитування CSV (Джерело CSV)
     TypedData = fxReadCSV("Оборотна відомість", ШаблонОСВ),
 
-    // Захищені обробники значень
     SafeBeforeDelimiter = (v as any, delim as text) as nullable text =>
         if v = null then
             null
@@ -22,17 +20,15 @@ let
         else
             try Date.FromText(Text.Start(Text.From(v), len)) otherwise null,
 
-    // Очищення та фільтрація
     Cleaned = Table.TransformColumns(
         TypedData,
         { { Cols[Найменування], each fxCleanText(_), type text } }
     ),
     NonZero = Table.SelectRows(Cleaned, each Record.Field(_, Cols[ЗалишокКін]) <> 0),
 
-    // Додавання розрахункових колонок
     WithSupplier = Table.AddColumn(
         NonZero,
-        Cols[Постачальник],
+        Cols[ЗовнішнійПостачальник],
         each SafeBeforeDelimiter(Record.Field(_, Cols[Аналітика5]), ";"),
         type text
     ),
@@ -49,7 +45,6 @@ let
         type date
     ),
 
-    // Валідація наявності дат партій
     ValidatedDates =
         let
             Parties = List.RemoveNulls(Table.Column(WithPartyDate, Cols[НомерПартії])),
@@ -60,7 +55,6 @@ let
             else
                 WithPartyDate,
 
-    // Фільтрація за винесеним параметром pReportDate
     FilteredResult =
         if pReportDate = null then
             ValidatedDates
