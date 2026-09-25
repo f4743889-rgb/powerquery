@@ -2,6 +2,7 @@ let
     Settings = cfgSettings,
     InCols = cfgSchema[Внесені],
     BalCols = cfgSchema[Вихід],
+    OSVCols = cfgSchema[ОСВ],
 
     // Внутрішня оболонка для створення записів
     Diagnostic = fxDiagnostic,
@@ -95,6 +96,7 @@ let
                 [ Value = Attempt[Value], Diagnostic = null ],
 
     InSrc = LoadSource(АналізВнесених, "АналізВнесених"),
+    OSVSrc = LoadSource(Оборотна, "Оборотна"),
     BalSrc = LoadSource(Залишок, "Залишок"),
     DiffSrc = LoadSource(РозбіжностіВнесених, "РозбіжностіВнесених"),
 
@@ -147,6 +149,11 @@ let
             List.Transform(SafeTableColumn(InSrc[Data], InCols[Постачальник]), Text.From)
         )
     ),
+    OSVUniqueMVO = List.Distinct(
+        List.RemoveNulls(
+            List.Transform(SafeTableColumn(OSVSrc[Data], OSVCols[Постачальник]), Text.From)
+        )
+    ),
 
     MsgType =
         if InSrc[Diagnostic] <> null then null
@@ -157,6 +164,26 @@ let
         if InSrc[Diagnostic] <> null then null
         else if MVOSrc[Diagnostic] <> null then MVOSrc[Diagnostic]
         else CheckSingleValue(MVOSrc[Value], InUniqueMVO, "МВО", Settings[NameMVO]),
+
+    // Перевіряємо вибраний МВО саме в оборотній відомості.
+    // Порожній pMVO означає обробку всіх МВО й не є помилкою.
+    MsgMVOOSV =
+        if MVOSrc[Diagnostic] <> null or MVOSrc[Value] = null then
+            null
+        else if OSVSrc[Diagnostic] <> null then
+            null
+        else if not List.Contains(OSVUniqueMVO, Text.From(MVOSrc[Value])) then
+            Diagnostic(
+                Settings[DiagnosticSeverity][Warning],
+                "PARAMETER_VALUE_NOT_FOUND",
+                "Оборотна",
+                "У запиті «Оборотна» немає рядків зі значенням МВО = «"
+                    & Text.From(MVOSrc[Value])
+                    & "». Списання за цим МВО не можуть бути знайдені.",
+                null
+            )
+        else
+            null,
 
     NegBalCount =
         if BalSrc[Data] = null then
@@ -277,7 +304,7 @@ let
     AllDiagnostics = List.RemoveNulls(List.Combine({
         MissingFileDiagnostics,
         FileReadDiagnostics,
-        { InSrc[Diagnostic], BalSrc[Diagnostic], DiffSrc[Diagnostic], MsgType, MsgMVO, MsgNeg, MsgNotes, MsgDiff, MsgReportDate },
+        { InSrc[Diagnostic], OSVSrc[Diagnostic], BalSrc[Diagnostic], DiffSrc[Diagnostic], MsgType, MsgMVO, MsgMVOOSV, MsgNeg, MsgNotes, MsgDiff, MsgReportDate },
         InQuality,
         BalQuality
     }))
