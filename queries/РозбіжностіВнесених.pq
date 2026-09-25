@@ -7,14 +7,12 @@ let
     RegData = fxValidateColumns(РеєстрЗведений, { Out[Номенклатура], RegCols[Назва], RegCols[Ціна], RegCols[Кількість], Out[Сума] }, "РеєстрЗведений"),
     InData = fxValidateColumns(АналізВнесених, Record.FieldValues(InCols), "АналізВнесених"),
 
-    // Використання ізольованих параметрів
     DocType = pDocumentType,
     MVO = pMVO,
 
     KeysReg = { Out[Номенклатура], RegCols[Назва], RegCols[Ціна] },
     KeysIn = { InCols[Номенклатура], InCols[Найменування], InCols[Ціна] },
 
-    // Групування реєстру
     RegGrouped = Table.Group(
         Table.TransformColumns(RegData, { { RegCols[Ціна], each fxSafeNumberRound(_, Settings[PriceRoundDigits]), type nullable number } }),
         KeysReg,
@@ -24,10 +22,9 @@ let
         }
     ),
 
-    // Фільтрація та групування внесених
     InFiltered = Table.SelectRows(InData, each not fxIsConfirmationAccount(Record.Field(_, InCols[Рахунок]))),
     InByType = if DocType = null then InFiltered else Table.SelectRows(InFiltered, each Record.Field(_, InCols[ТипДокумента]) = DocType),
-    InByMVO = if MVO = null then InByType else Table.SelectRows(InByType, each Record.Field(_, InCols[Постачальник]) = MVO),
+    InByMVO = if MVO = null then InByType else Table.SelectRows(InByType, each Record.Field(_, InCols[МВО]) = MVO),
 
     InGrouped = Table.Group(
         Table.TransformColumns(InByMVO, { { InCols[Ціна], each fxSafeNumberRound(_, Settings[PriceRoundDigits]), type nullable number } }),
@@ -39,7 +36,6 @@ let
     ),
     InRenamedKeys = Table.RenameColumns(InGrouped, List.Zip({ KeysIn, KeysReg })),
 
-    // З’єднання та виявлення розбіжностей
     AllKeys = Table.Distinct(Table.Combine({ Table.SelectColumns(RegGrouped, KeysReg), Table.SelectColumns(InRenamedKeys, KeysReg) })),
 
     JoinReg = Table.ExpandTableColumn(Table.NestedJoin(AllKeys, KeysReg, RegGrouped, KeysReg, "_Reg", JoinKind.LeftOuter), "_Reg", { Out[ЗвітКількість], Out[ЗвітСума] }),
