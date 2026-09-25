@@ -8,7 +8,7 @@ let
     ParseColsList = Record.FieldValues(ParseFields),
 
     OSVData = fxValidateColumns(Оборотна, Record.FieldValues(ColsOSV), "Оборотна"),
-    RegData = fxValidateColumns(РеєстрЗведений, { ColsReg[Номер], ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість] }, "РеєстрЗведений"),
+    RegData = fxValidateColumns(РеєстрЗведений, { ColsReg[Номер], ColsReg[Назва], Out[Номенклатура], ColsReg[Ціна], ColsReg[Дата], ColsReg[Кількість], Out[Сума] }, "РеєстрЗведений"),
 
     FifoColumns = {
         ColsOSV[ДатаПартії],
@@ -23,7 +23,7 @@ let
         ColsOSV[Номенклатура],
         ColsOSV[ОдиницяВиміру],
         ColsOSV[Ціна],
-        ColsOSV[Постачальник],
+        ColsOSV[ЗовнішнійПостачальник],
         ColsOSV[РахунокКороткий],
         ColsOSV[Найменування],
         ColsOSV[ДатаПартії],
@@ -118,7 +118,7 @@ let
                         if pWO = 0 or List.IsEmpty(EarlyDates) then
                             null
                         else
-                            "Дата видачі (" & Text.Combine(List.Transform(EarlyDates, each Date.ToText(_, Settings[DateFormat])), ", ") & ") менша за дату отримання (" & Text.From(pDate) & ").",
+                            "Дата видачі (" & Text.Combine(List.Transform(EarlyDates, each Date.ToText(_, Settings[DateFormat])), ", ") & ") менша за дату отримання",
                 type text
             )
         in
@@ -173,12 +173,10 @@ let
     // IsValid та інші технічні поля розгортаються до фільтрації.
     ExpandCols = List.Distinct({
         ColsOSV[ОдиницяВиміру],
-        ColsOSV[Постачальник],
+        ColsOSV[ЗовнішнійПостачальник],
         Out[Накладна],
         ColsOSV[РахунокКороткий],
         ColsOSV[ДатаПартії],
-        // Кількість облік не є ключем групування, тому її потрібно явно
-        // повернути з вкладеної таблиці до фінального впорядкування колонок.
         Out[КількістьОблік],
         Out[КількістьСписання],
         Out[Залишок],
@@ -194,7 +192,7 @@ let
     ),
     Combined = Table.Combine({ InvalidInv, ValidInv }),
     FinalCols = {
-        ColsOSV[Постачальник],
+        ColsOSV[ЗовнішнійПостачальник],
         Out[Накладна],
         ColsOSV[РахунокКороткий],
         ColsOSV[Найменування],
