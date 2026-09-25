@@ -27,9 +27,10 @@ let
                     Table.PromoteHeaders(Attempt[Value], [PromoteAllScalars = true]),
 
     Validated = fxValidateColumns(RawData, Table.ColumnNames(templateTable), filePurpose),
+    TemplateOnly = Table.SelectColumns(Validated, Table.ColumnNames(templateTable)),
 
     NonEmpty = Table.SelectRows(
-        Validated,
+        TemplateOnly,
         (row) =>
             List.MatchesAny(
                 Record.FieldValues(row),
