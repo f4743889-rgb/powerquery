@@ -32,7 +32,7 @@ let
     // Додавання розрахункових колонок
     WithSupplier = Table.AddColumn(
         NonZero,
-        Cols[Постачальник],
+        Cols[ЗовнішнійПостачальник],
         each SafeBeforeDelimiter(Record.Field(_, Cols[Аналітика5]), ";"),
         type text
     ),
