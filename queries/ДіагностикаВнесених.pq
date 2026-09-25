@@ -4,7 +4,6 @@ let
     BalCols = cfgSchema[Вихід],
     OSVCols = cfgSchema[ОСВ],
 
-    // Внутрішня оболонка для створення записів
     Diagnostic = fxDiagnostic,
     FileRegistry = fxValidateColumns(
         ЗавантаженіФайли,
@@ -12,7 +11,6 @@ let
         "ЗавантаженіФайли"
     ),
 
-    // Визначаємо шаблонний режим для ключових файлів
     MissingFileDiagnostics = {
         if Table.RowCount(Table.SelectRows(FileRegistry, each [Призначення] = "Внесені документи")) = 0 then
             Diagnostic(
@@ -45,7 +43,6 @@ let
         else null
     },
 
-    // Повідомляємо про помилки читання без повторного виконання джерела.
     FileReadDiagnostics = List.Transform(
         Table.ToRecords(Table.SelectRows(FileRegistry, each [ErrorCode] <> null)),
         (r) => Diagnostic(
@@ -116,8 +113,7 @@ let
         if tbl = null then {} else try Table.Column(tbl, colName) otherwise {},
 
     InUniqueDoc = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[ТипДокумента]), Text.From))),
-    InUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[MVO]), Text.From))),
-    // МВО в оборотній — це «Контрагент», а не «Від кого» (постачальник).
+    InUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[МВО]), Text.From))),
     OSVUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(OSVSrc[Data], OSVCols[МВО]), Text.From))),
 
     MsgType =
@@ -138,16 +134,16 @@ let
                 Settings[DiagnosticSeverity][Warning],
                 "PARAMETER_VALUE_NOT_FOUND",
                 "Оборотна",
-                "У запиті «Оборотна» немає рядків зі значенням МВО = «" & Text.From(MVOSrc[Value]) & "». Списання за цим МВО не можуть бути знайдені.",
+                "У запиті «Оборотна» немає рядків зі значенням МВО = «" & Text.From(MVOSrc[Value]) & "». Списання за цим МВО не можуть бути перевірені.",
                 null
             )
         else null,
 
     NegBalCount = if BalSrc[Data] = null then 0 else Table.RowCount(Table.SelectRows(BalSrc[Data], each let v = try Record.Field(_, BalCols[Залишок]) otherwise null in v <> null and v < 0)),
-    MsgNeg = if NegBalCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Warning], "NEGATIVE_BALANCE", "Залишок", "У запиті «Залишок» знайдено від’ємні значення (" & Text.From(NegBalCount) & " рядк.).", null) else null,
+    MsgNeg = if NegBalCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Warning], "NEGATIVE_BALANCE", "Залишок", "У запиті «Залишок» знайдено від’ємні залишки.", null) else null,
 
     NotesCount = if BalSrc[Data] = null then 0 else Table.RowCount(Table.SelectRows(BalSrc[Data], each let v = try Record.Field(_, BalCols[Примітка]) otherwise null in v <> null and Text.Trim(Text.From(v)) <> "")),
-    MsgNotes = if NotesCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Info], "BALANCE_NOTES_PRESENT", "Залишок", "У запиті «Залишок» є " & Text.From(NotesCount) & " рядк. із заповненою приміткою.", null) else null,
+    MsgNotes = if NotesCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Info], "BALANCE_NOTES_PRESENT", "Залишок", "У запиті «Залишок» є " & Text.From(NotesCount) & " рядків із приміткою.", null) else null,
 
     DiffCount = if DiffSrc[Data] = null then 0 else Table.RowCount(DiffSrc[Data]),
     MsgDiff = if DiffCount > 0 then Diagnostic(Settings[DiagnosticSeverity][Warning], "REGISTER_DIFFERENCES", "РозбіжностіВнесених", "Знайдено " & Text.From(DiffCount) & " розбіжностей у «РозбіжностіВнесених».", null) else null,
@@ -161,7 +157,7 @@ let
 
     InRules = {
         [Severity = Settings[DiagnosticSeverity][Warning], Code = "EMPTY_DOC_TYPE", Message = "У таблиці є рядки з пустим типом документа.", Predicate = each (try Record.Field(_, InCols[ТипДокумента]) otherwise null) = null],
-        [Severity = Settings[DiagnosticSeverity][Warning], Code = "EMPTY_MVO", Message = "У таблиці є рядки з пустим МВО.", Predicate = each (try Record.Field(_, InCols[Постачальник]) otherwise null) = null]
+        [Severity = Settings[DiagnosticSeverity][Warning], Code = "EMPTY_MVO", Message = "У таблиці є рядки з пустим МВО.", Predicate = each (try Record.Field(_, InCols[МВО]) otherwise null) = null]
     },
     InQuality = fxCollectDataQualityDiagnostics(АналізВнесених, "АналізВнесених", InRules),
 
