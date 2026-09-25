@@ -116,7 +116,7 @@ let
         if tbl = null then {} else try Table.Column(tbl, colName) otherwise {},
 
     InUniqueDoc = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[ТипДокумента]), Text.From))),
-    InUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[Постачальник]), Text.From))),
+    InUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(InSrc[Data], InCols[MVO]), Text.From))),
     // МВО в оборотній — це «Контрагент», а не «Від кого» (постачальник).
     OSVUniqueMVO = List.Distinct(List.RemoveNulls(List.Transform(SafeTableColumn(OSVSrc[Data], OSVCols[МВО]), Text.From))),
 
