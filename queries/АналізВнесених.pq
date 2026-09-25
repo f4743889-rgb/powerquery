@@ -5,7 +5,7 @@ let
     TypedData = fxReadCSV("Внесені документи", ШаблонВнесені),
 
     // Очищення текстових полів
-    TextColsToClean = { Cols[Найменування], Cols[Префікс], Cols[ТипДокумента], Cols[Постачальник], Cols[Номер] },
+    TextColsToClean = { Cols[Найменування], Cols[Префікс], Cols[ТипДокумента], Cols[МВО], Cols[Номер] },
     CleanedData = Table.TransformColumns(
         TypedData,
         List.Transform(
